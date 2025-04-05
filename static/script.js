@@ -1,3 +1,5 @@
+let currentTaskId = null;
+
 document.addEventListener('DOMContentLoaded', () => {
   setInterval(pollStatus, 5000);
 });
@@ -12,6 +14,7 @@ function startCommenting() {
   })
   .then(res => res.json())
   .then(data => {
+    currentTaskId = data.task_id; // Store task_id
     document.getElementById('status').innerHTML = `<p><b>Status:</b> ${data.message}</p>`;
   })
   .catch(err => {
@@ -20,8 +23,17 @@ function startCommenting() {
 }
 
 function stopProcess() {
+  if (!currentTaskId) {
+    document.getElementById('status').innerHTML = `<p><b>Error:</b> No active task ID found.</p>`;
+    return;
+  }
+
   fetch('/stop', {
-    method: 'POST'
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ task_id: currentTaskId })
   })
   .then(res => res.json())
   .then(data => {
@@ -35,6 +47,12 @@ function stopProcess() {
     document.getElementById('failedCount').textContent = '0';
     document.getElementById('activeTokens').textContent = '0';
     document.getElementById('progressBar').style.width = '0%';
+
+    // Clear stored task ID
+    currentTaskId = null;
+  })
+  .catch(err => {
+    document.getElementById('status').innerHTML = `<p><b>Error:</b> Failed to stop. ${err}</p>`;
   });
 }
 
