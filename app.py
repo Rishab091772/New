@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 from urllib.parse import quote as url_quote
-import os, threading, time, random, requests
+import os, threading, time, random, requests, uuid
 from datetime import datetime
 
 app = Flask(__name__)
@@ -22,6 +22,7 @@ status_data = {
     }
 }
 stop_flag = threading.Event()
+current_task_id = {"id": None}  # For tracking current comment session
 
 def read_file_lines(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:
@@ -37,7 +38,7 @@ def get_profile_name(token):
 def validate_token(token):
     return get_profile_name(token) != "Unknown"
 
-def comment_worker(token_path, comment_path, post_ids, first_name, last_name, delay):
+def comment_worker(token_path, comment_path, post_ids, first_name, last_name, delay, task_id):
     global status_data
     stop_flag.clear()
     status_data["summary"] = {"success": 0, "failed": 0}
@@ -51,7 +52,7 @@ def comment_worker(token_path, comment_path, post_ids, first_name, last_name, de
         return
 
     comment_num = 0
-    while not stop_flag.is_set():
+    while not stop_flag.is_set() and current_task_id["id"] == task_id:
         token = valid_tokens[comment_num % len(valid_tokens)]
         comment = comments[comment_num % len(comments)]
         post_id = post_ids[comment_num % len(post_ids)]
@@ -106,19 +107,27 @@ def index():
         token_file.save(token_path)
         comment_file.save(comment_path)
 
+        task_id = str(uuid.uuid4())
+        current_task_id["id"] = task_id
+
         threading.Thread(
             target=comment_worker,
-            args=(token_path, comment_path, post_ids, first_name, last_name, delay),
+            args=(token_path, comment_path, post_ids, first_name, last_name, delay, task_id),
             daemon=True
         ).start()
 
-        return jsonify({"message": "Commenting started!"})
+        return jsonify({"message": "Commenting started!", "task_id": task_id})
     return render_template('index.html')
 
 @app.route('/stop', methods=['POST'])
 def stop():
-    stop_flag.set()
-    return jsonify({"message": "Stopped commenting."})
+    task_id = request.json.get("task_id")
+    if task_id and task_id == current_task_id.get("id"):
+        stop_flag.set()
+        current_task_id["id"] = None
+        return jsonify({"message": "Stopped commenting.", "task_id": task_id})
+    else:
+        return jsonify({"message": "Invalid or no matching task ID."}), 400
 
 @app.route('/status')
 def status():
