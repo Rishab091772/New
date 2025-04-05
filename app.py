@@ -115,7 +115,8 @@ def index():
         t.start()
         task_threads[task_id] = t
 
-        return jsonify({"message": "Commenting started!", "task_id": task_id})
+        if not task_id:
+    return jsonify({"message": "Task ID is required."}), 400
 
     return render_template('index.html')
 
@@ -129,7 +130,8 @@ def stop():
         del task_threads[task_id]
         del stop_flags[task_id]
         return jsonify({"message": f"Stopped task {task_id}."})
-    return jsonify({"message": "Invalid task ID."}), 400
+    if not task_id:
+    return jsonify({"message": "Task ID is required."}), 400
 
 @app.route('/status')
 def status():
