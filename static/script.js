@@ -14,8 +14,9 @@ function startCommenting() {
   })
   .then(res => res.json())
   .then(data => {
-    currentTaskId = data.task_id; // Store task_id
+    currentTaskId = data.task_id || null;
     document.getElementById('status').innerHTML = `<p><b>Status:</b> ${data.message}</p>`;
+    document.getElementById('taskIdDisplay').textContent = currentTaskId || 'None';
   })
   .catch(err => {
     document.getElementById('status').innerHTML = `<p><b>Error:</b> ${err}</p>`;
@@ -23,11 +24,6 @@ function startCommenting() {
 }
 
 function stopProcess() {
-  if (!currentTaskId) {
-    document.getElementById('status').innerHTML = `<p><b>Error:</b> No active task ID found.</p>`;
-    return;
-  }
-
   fetch('/stop', {
     method: 'POST',
     headers: {
@@ -38,21 +34,8 @@ function stopProcess() {
   .then(res => res.json())
   .then(data => {
     document.getElementById('status').innerHTML = `<b>${data.message}</b>`;
-
-    // Clear the log content
     document.getElementById('logContent').innerHTML = `<p>Logs cleared after stop.</p>`;
-
-    // Reset status counts
-    document.getElementById('successCount').textContent = '0';
-    document.getElementById('failedCount').textContent = '0';
-    document.getElementById('activeTokens').textContent = '0';
-    document.getElementById('progressBar').style.width = '0%';
-
-    // Clear stored task ID
-    currentTaskId = null;
-  })
-  .catch(err => {
-    document.getElementById('status').innerHTML = `<p><b>Error:</b> Failed to stop. ${err}</p>`;
+    document.getElementById('taskIdDisplay').textContent = 'None';
   });
 }
 
@@ -70,6 +53,7 @@ function pollStatus() {
         <p><strong>Name:</strong> ${l.profile_name || '-'}</p>
         <p><strong>Comment:</strong> ${l.comment || '-'}</p>
         <p><strong>Time:</strong> ${l.timestamp || '-'}</p>
+        <p><strong>Task ID:</strong> ${currentTaskId || 'None'}</p>
       `;
 
       const logContent = document.getElementById('logContent');
