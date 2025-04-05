@@ -134,6 +134,8 @@ def stop():
 @app.route('/status')
 def status():
     task_id = request.args.get('task_id')
+    if not task_id:
+        return jsonify({"error": "Task ID is required for status check"}), 400
     return jsonify(status_data.get(task_id, {
         "summary": {"success": 0, "failed": 0},
         "latest": {}
