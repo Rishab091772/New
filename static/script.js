@@ -14,15 +14,11 @@ function startCommenting() {
   })
   .then(res => res.json())
   .then(data => {
-    if (data.task_id) {
-      currentTaskId = data.task_id;
-      updateStatus(`<p><b>Status:</b> ${data.message} (Task ID: ${currentTaskId})</p>`);
-    } else {
-      updateStatus(`<p><b>Error:</b> ${data.message || 'Task ID not returned'}</p>`);
-    }
+    currentTaskId = data.task_id || null;
+    updateStatus(data.message || "Started commenting.");
   })
   .catch(err => {
-    updateStatus(`<p><b>Error:</b> ${err}</p>`);
+    updateStatus(`Error: ${err}`);
   });
 }
 
@@ -39,9 +35,8 @@ function stopCommenting() {
   })
   .then(res => res.json())
   .then(data => {
-    updateStatus(`<b>${data.message}</b>`);
-    const log = document.getElementById('logContent');
-    if (log) log.innerHTML = `<p>Logs cleared after stop.</p>`;
+    updateStatus(data.message || "Stopped.");
+    document.getElementById('logContent').innerHTML = `<p>Logs cleared after stop.</p>`;
     currentTaskId = null;
   });
 }
@@ -50,8 +45,7 @@ function pollStatus() {
   fetch('/status')
     .then(res => res.json())
     .then(data => {
-      const s = data.summary;
-      const l = data.latest;
+      const { summary: s, latest: l } = data;
 
       updateStatus(`
         <p><strong>Success:</strong> ${s.success} | <strong>Failed:</strong> ${s.failed}</p>
@@ -63,19 +57,16 @@ function pollStatus() {
         <p><strong>Time:</strong> ${l.timestamp || '-'}</p>
       `);
 
-      const logContent = document.getElementById('logContent');
       const logEntry = `
         <p>#${l.comment_number || '-'} | ${l.comment || '-'} | ${l.token || '-'} | ${l.post_id || '-'} | ${l.timestamp || '-'}</p>
       `;
-      if (logContent) {
-        logContent.innerHTML = logEntry + logContent.innerHTML;
-      }
+
+      const logContent = document.getElementById('logContent');
+      if (logContent) logContent.innerHTML = logEntry + logContent.innerHTML;
     });
 }
 
 function updateStatus(html) {
   const statusEl = document.getElementById('status');
-  if (statusEl) {
-    statusEl.innerHTML = html;
-  }
+  if (statusEl) statusEl.innerHTML = html;
 }
