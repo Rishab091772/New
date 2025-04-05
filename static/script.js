@@ -14,28 +14,30 @@ function startCommenting() {
   })
   .then(res => res.json())
   .then(data => {
-    currentTaskId = data.task_id || null;
+    currentTaskId = data.task_id;  // Save the task ID
     document.getElementById('status').innerHTML = `<p><b>Status:</b> ${data.message}</p>`;
-    document.getElementById('taskIdDisplay').textContent = currentTaskId || 'None';
   })
   .catch(err => {
     document.getElementById('status').innerHTML = `<p><b>Error:</b> ${err}</p>`;
   });
 }
 
-function stopProcess() {
+function stopCommenting() {
+  if (!currentTaskId) {
+    alert("No active task to stop.");
+    return;
+  }
+
   fetch('/stop', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ task_id: currentTaskId })
   })
   .then(res => res.json())
   .then(data => {
     document.getElementById('status').innerHTML = `<b>${data.message}</b>`;
     document.getElementById('logContent').innerHTML = `<p>Logs cleared after stop.</p>`;
-    document.getElementById('taskIdDisplay').textContent = 'None';
+    currentTaskId = null;
   });
 }
 
@@ -53,7 +55,6 @@ function pollStatus() {
         <p><strong>Name:</strong> ${l.profile_name || '-'}</p>
         <p><strong>Comment:</strong> ${l.comment || '-'}</p>
         <p><strong>Time:</strong> ${l.timestamp || '-'}</p>
-        <p><strong>Task ID:</strong> ${currentTaskId || 'None'}</p>
       `;
 
       const logContent = document.getElementById('logContent');
