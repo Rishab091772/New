@@ -14,11 +14,15 @@ function startCommenting() {
   })
   .then(res => res.json())
   .then(data => {
-    currentTaskId = data.task_id;  // Save the task ID
-    document.getElementById('status').innerHTML = `<p><b>Status:</b> ${data.message}</p>`;
+    if (data.task_id) {
+      currentTaskId = data.task_id;
+      updateStatus(`<p><b>Status:</b> ${data.message} (Task ID: ${currentTaskId})</p>`);
+    } else {
+      updateStatus(`<p><b>Error:</b> ${data.message || 'Task ID not returned'}</p>`);
+    }
   })
   .catch(err => {
-    document.getElementById('status').innerHTML = `<p><b>Error:</b> ${err}</p>`;
+    updateStatus(`<p><b>Error:</b> ${err}</p>`);
   });
 }
 
@@ -35,8 +39,9 @@ function stopCommenting() {
   })
   .then(res => res.json())
   .then(data => {
-    document.getElementById('status').innerHTML = `<b>${data.message}</b>`;
-    document.getElementById('logContent').innerHTML = `<p>Logs cleared after stop.</p>`;
+    updateStatus(`<b>${data.message}</b>`);
+    const log = document.getElementById('logContent');
+    if (log) log.innerHTML = `<p>Logs cleared after stop.</p>`;
     currentTaskId = null;
   });
 }
@@ -47,7 +52,8 @@ function pollStatus() {
     .then(data => {
       const s = data.summary;
       const l = data.latest;
-      document.getElementById('status').innerHTML = `
+
+      updateStatus(`
         <p><strong>Success:</strong> ${s.success} | <strong>Failed:</strong> ${s.failed}</p>
         <p><strong>Last Comment #${l.comment_number || '-'}</strong></p>
         <p><strong>Post ID:</strong> ${l.post_id || '-'}</p>
@@ -55,12 +61,21 @@ function pollStatus() {
         <p><strong>Name:</strong> ${l.profile_name || '-'}</p>
         <p><strong>Comment:</strong> ${l.comment || '-'}</p>
         <p><strong>Time:</strong> ${l.timestamp || '-'}</p>
-      `;
+      `);
 
       const logContent = document.getElementById('logContent');
       const logEntry = `
         <p>#${l.comment_number || '-'} | ${l.comment || '-'} | ${l.token || '-'} | ${l.post_id || '-'} | ${l.timestamp || '-'}</p>
       `;
-      logContent.innerHTML = logEntry + logContent.innerHTML;
+      if (logContent) {
+        logContent.innerHTML = logEntry + logContent.innerHTML;
+      }
     });
+}
+
+function updateStatus(html) {
+  const statusEl = document.getElementById('status');
+  if (statusEl) {
+    statusEl.innerHTML = html;
+  }
 }
