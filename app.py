@@ -1,10 +1,12 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template, send_from_directory
 import os, threading, time, random, requests, uuid
 from datetime import datetime
 
 app = Flask(__name__)
-UPLOAD_FOLDER = 'uploads'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.static_folder = 'static'
+app.template_folder = 'templates'
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 status_data = {}
 task_threads = {}
@@ -78,7 +80,11 @@ def comment_worker(task_id, token_path, comment_path, post_ids, first_name, last
         comment_num += 1
         time.sleep(random.randint(delay, delay + 5))
 
-@app.route('/start', methods=['POST'])
+@app.route('/')
+def index():
+    return render_template("index.html")
+
+@app.route('/', methods=['POST'])
 def start():
     token_file = request.files.get('token_file')
     comment_file = request.files.get('comment_file')
@@ -91,8 +97,8 @@ def start():
         return jsonify({"error": "Missing required fields."}), 400
 
     task_id = str(uuid.uuid4())
-    token_path = os.path.join(UPLOAD_FOLDER, f'{task_id}_tokens.txt')
-    comment_path = os.path.join(UPLOAD_FOLDER, f'{task_id}_comments.txt')
+    token_path = os.path.join(app.config['UPLOAD_FOLDER'], f'{task_id}_tokens.txt')
+    comment_path = os.path.join(app.config['UPLOAD_FOLDER'], f'{task_id}_comments.txt')
     token_file.save(token_path)
     comment_file.save(comment_path)
 
