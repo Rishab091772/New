@@ -1,5 +1,4 @@
-from flask import Flask, render_template, request, jsonify
-from urllib.parse import quote as url_quote
+from flask import Flask, request, jsonify
 import os, threading, time, random, requests, uuid
 from datetime import datetime
 
@@ -13,7 +12,7 @@ stop_flags = {}
 
 def read_file_lines(filepath):
     with open(filepath, 'r', encoding='utf-8') as f:
-        return [line.strip() for line in f.readlines() if line.strip()]
+        return [line.strip() for line in f if line.strip()]
 
 def get_profile_name(token):
     try:
@@ -29,16 +28,7 @@ def comment_worker(task_id, token_path, comment_path, post_ids, first_name, last
     stop_flag = stop_flags[task_id]
     status_data[task_id] = {
         "summary": {"success": 0, "failed": 0},
-        "latest": {
-            "comment_number": None,
-            "comment": None,
-            "full_comment": None,
-            "token": None,
-            "post_id": None,
-            "profile_name": None,
-            "timestamp": None,
-            "status": None
-        }
+        "latest": {}
     }
 
     tokens = read_file_lines(token_path)
@@ -57,7 +47,6 @@ def comment_worker(task_id, token_path, comment_path, post_ids, first_name, last
         profile_name = get_profile_name(token)
         full_comment = " ".join(filter(None, [first_name, comment, last_name]))
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        token_index = comment_num % len(valid_tokens)
 
         try:
             res = requests.post(f"https://graph.facebook.com/{post_id}/comments", data={
@@ -66,20 +55,20 @@ def comment_worker(task_id, token_path, comment_path, post_ids, first_name, last
             })
             result = res.json()
             if "id" in result:
-                status_data[task_id]["summary"]["success"] += 1
                 status = "Success"
+                status_data[task_id]["summary"]["success"] += 1
             else:
-                status_data[task_id]["summary"]["failed"] += 1
                 status = "Failed"
+                status_data[task_id]["summary"]["failed"] += 1
         except:
-            status_data[task_id]["summary"]["failed"] += 1
             status = "Failed"
+            status_data[task_id]["summary"]["failed"] += 1
 
         status_data[task_id]["latest"] = {
             "comment_number": comment_num + 1,
             "comment": comment,
             "full_comment": full_comment,
-            "token": f"Token #{token_index + 1}",
+            "token": f"Token #{(comment_num % len(valid_tokens)) + 1}",
             "post_id": post_id,
             "profile_name": profile_name,
             "timestamp": timestamp,
@@ -89,61 +78,64 @@ def comment_worker(task_id, token_path, comment_path, post_ids, first_name, last
         comment_num += 1
         time.sleep(random.randint(delay, delay + 5))
 
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    if request.method == 'POST':
-        token_file = request.files['token_file']
-        comment_file = request.files['comment_file']
-        post_ids = request.form.get('post_ids')
-        first_name = request.form.get('first_name', '')
-        last_name = request.form.get('last_name', '')
-        delay = max(60, int(request.form.get('delay', 60)))
+@app.route('/start', methods=['POST'])
+def start():
+    token_file = request.files.get('token_file')
+    comment_file = request.files.get('comment_file')
+    post_ids = request.form.get('post_ids')
+    first_name = request.form.get('first_name', '')
+    last_name = request.form.get('last_name', '')
+    delay = max(60, int(request.form.get('delay', 60)))
 
-        token_path = os.path.join(UPLOAD_FOLDER, 'tokens.txt')
-        comment_path = os.path.join(UPLOAD_FOLDER, 'comments.txt')
-        token_file.save(token_path)
-        comment_file.save(comment_path)
+    if not token_file or not comment_file or not post_ids:
+        return jsonify({"error": "Missing required fields."}), 400
 
-        task_id = str(uuid.uuid4())
-        stop_flags[task_id] = threading.Event()
+    task_id = str(uuid.uuid4())
+    token_path = os.path.join(UPLOAD_FOLDER, f'{task_id}_tokens.txt')
+    comment_path = os.path.join(UPLOAD_FOLDER, f'{task_id}_comments.txt')
+    token_file.save(token_path)
+    comment_file.save(comment_path)
 
-        t = threading.Thread(
-            target=comment_worker,
-            args=(task_id, token_path, comment_path, post_ids, first_name, last_name, delay),
-            daemon=True
-        )
-        t.start()
-        task_threads[task_id] = t
+    stop_flags[task_id] = threading.Event()
+    thread = threading.Thread(
+        target=comment_worker,
+        args=(task_id, token_path, comment_path, post_ids, first_name, last_name, delay),
+        daemon=True
+    )
+    thread.start()
+    task_threads[task_id] = thread
 
-        return jsonify({"message": "Commenting started!", "task_id": task_id})
-
-    return render_template('index.html')
+    return jsonify({"message": "Commenting started", "task_id": task_id})
 
 @app.route('/stop', methods=['POST'])
 def stop():
     data = request.get_json()
     task_id = data.get("task_id")
-
     if not task_id:
-        return jsonify({"message": "Task ID is required."}), 400
+        return jsonify({"error": "Task ID is required"}), 400
 
     if task_id in task_threads:
         stop_flags[task_id].set()
         del task_threads[task_id]
         del stop_flags[task_id]
-        return jsonify({"message": f"Stopped task {task_id}."})
+        return jsonify({"message": f"Stopped task {task_id}"})
     else:
-        return jsonify({"message": "Invalid task ID."}), 400
+        return jsonify({"error": "Invalid task ID"}), 400
 
 @app.route('/status')
 def status():
-    task_id = request.args.get('task_id')
+    task_id = request.args.get("task_id")
     if not task_id:
-        return jsonify({"error": "Task ID is required for status check"}), 400
+        return jsonify({"error": "Task ID is required"}), 400
     return jsonify(status_data.get(task_id, {
         "summary": {"success": 0, "failed": 0},
         "latest": {}
     }))
 
+@app.route('/ping')
+def ping():
+    return "pong"
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
